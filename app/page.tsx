@@ -1,16 +1,27 @@
 'use client';
 
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 import { useState } from 'react';
 import { Send, Shield, Smartphone } from 'lucide-react';
 
 export default function DemoPage() {
   const [role, setRole] = useState<'Store Staff' | 'Cluster Manager'>('Store Staff');
+  const [inputText, setInputText] = useState('');
 
-  const { messages, input, handleInputChange, handleSubmit, setInput } = useChat({
-    api: '/api/chat',
-    body: { userRole: role },
-  });
+  const { messages, sendMessage, status } = useChat();
+
+  const handleSend = async (textToSend?: string) => {
+    const text = textToSend || inputText;
+    if (!text.trim() || status === 'streaming') return;
+
+    setInputText('');
+    await sendMessage(
+      { text },
+      {
+        body: { userRole: role },
+      }
+    );
+  };
 
   return (
     <main className="flex h-screen bg-[#111b21] text-gray-100 font-sans">
@@ -25,14 +36,20 @@ export default function DemoPage() {
           <p className="text-xs text-gray-400 mb-3 uppercase tracking-wider font-medium">Switch Active Role</p>
           <div className="flex flex-col gap-2 mb-6">
             <button
+              type="button"
               onClick={() => setRole('Store Staff')}
-              className={`p-3 text-left rounded-lg text-sm transition ${role === 'Store Staff' ? 'bg-[#00a884] text-white font-medium' : 'bg-[#202c33] text-gray-300'}`}
+              className={`p-3 text-left rounded-lg text-sm transition ${
+                role === 'Store Staff' ? 'bg-[#00a884] text-white font-medium' : 'bg-[#202c33] text-gray-300'
+              }`}
             >
               Store Staff (Adajan Branch)
             </button>
             <button
+              type="button"
               onClick={() => setRole('Cluster Manager')}
-              className={`p-3 text-left rounded-lg text-sm transition ${role === 'Cluster Manager' ? 'bg-[#00a884] text-white font-medium' : 'bg-[#202c33] text-gray-300'}`}
+              className={`p-3 text-left rounded-lg text-sm transition ${
+                role === 'Cluster Manager' ? 'bg-[#00a884] text-white font-medium' : 'bg-[#202c33] text-gray-300'
+              }`}
             >
               Cluster Manager (Surat Region)
             </button>
@@ -40,14 +57,16 @@ export default function DemoPage() {
 
           <p className="text-xs text-gray-400 mb-2 uppercase tracking-wider font-medium">Quick Prompts</p>
           <div className="flex flex-col gap-2">
-            <button 
-              onClick={() => setInput("Which store has iPhone 16 Pro in stock?")}
+            <button
+              type="button"
+              onClick={() => handleSend('Which store has iPhone 16 Pro in stock?')}
               className="text-left text-xs bg-[#202c33] hover:bg-[#2a3942] p-2.5 rounded text-gray-300 border border-[#2a3942]"
             >
               "Which store has iPhone 16 Pro in stock?"
             </button>
-            <button 
-              onClick={() => setInput("Show today's Paytm vs ERP settlement discrepancies.")}
+            <button
+              type="button"
+              onClick={() => handleSend("Show today's Paytm vs ERP settlement discrepancies.")}
               className="text-left text-xs bg-[#202c33] hover:bg-[#2a3942] p-2.5 rounded text-gray-300 border border-[#2a3942]"
             >
               "Show today's Paytm vs ERP settlement discrepancies."
@@ -74,27 +93,53 @@ export default function DemoPage() {
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.length === 0 && (
             <div className="text-center text-sm text-gray-500 mt-20">
-              Type a prompt or choose a sample question from the left panel to simulate the WhatsApp interaction.
+              Type a prompt or choose a sample question from the left panel to test the agent.
             </div>
           )}
-          {messages.map((m) => (
-            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[70%] p-3.5 rounded-lg text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-[#005c4b] text-white rounded-tr-none' : 'bg-[#202c33] text-gray-100 rounded-tl-none shadow'}`}>
-                {m.content}
+          {messages.map((m) => {
+            const textContent =
+              m.parts
+                ?.filter((part) => part.type === 'text')
+                .map((part) => (part as { text: string }).text)
+                .join('') || '';
+
+            if (!textContent) return null;
+
+            return (
+              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[70%] p-3.5 rounded-lg text-sm whitespace-pre-wrap ${
+                    m.role === 'user'
+                      ? 'bg-[#005c4b] text-white rounded-tr-none'
+                      : 'bg-[#202c33] text-gray-100 rounded-tl-none shadow'
+                  }`}
+                >
+                  {textContent}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Input Bar */}
-        <form onSubmit={handleSubmit} className="p-3 bg-[#202c33] flex items-center gap-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSend();
+          }}
+          className="p-3 bg-[#202c33] flex items-center gap-3"
+        >
           <input
-            value={input}
-            onChange={handleInputChange}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
             placeholder="Type your WhatsApp message..."
             className="flex-1 bg-[#2a3942] text-sm text-white rounded-lg px-4 py-3 focus:outline-none placeholder-gray-400"
           />
-          <button type="submit" className="p-3 bg-[#00a884] hover:bg-[#02906f] rounded-lg text-white">
+          <button
+            type="submit"
+            disabled={status === 'streaming'}
+            className="p-3 bg-[#00a884] hover:bg-[#02906f] disabled:opacity-50 rounded-lg text-white"
+          >
             <Send className="w-4 h-4" />
           </button>
         </form>
